@@ -1,0 +1,83 @@
+server:
+  port: 8082
+  # 让 Tomcat 用 UTF-8 解析 query string 与 body
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+
+spring:
+  application:
+    name: travel-diary
+
+  # 密码一律走环境变量,代库中零硬编码。
+  # 启动方式:DB_PASSWORD=你的密码 mvn spring-boot:run
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:travel_diary}?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&rewriteBatchedStatements=true
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:change-me}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 10000
+      pool-name: DiaryHikari
+
+  # 时间统一以 ISO-8601 返回,相对时间("3 小时前")由前端格式化
+  jackson:
+    time-zone: Asia/Shanghai
+    serialization:
+      write-dates-as-timestamps: false
+
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 40MB
+
+mybatis-plus:
+  # 刻意不配 type-aliases-package。
+  #
+  # 类型别名只在 XML mapper 里用 resultType="Entry" 这种短名时才需要,
+  # 本项目所有查询都走注解与 BaseMapper,没有 XML mapper,配了纯属多余。
+  # 而它一旦启用,MyBatis 会把实体包下每个类按「简单名」注册成别名,
+  # 且比较时不区分大小写 —— 任何与内置别名(collection / list / map / date ...)
+  # 同名的实体会让应用启动直接失败,报的错还很难看懂。
+  mapper-locations: classpath*:/mapper/**/*.xml
+  configuration:
+    # 下划线字段 -> 驼峰属性
+    map-underscore-to-camel-case: true
+    # 关掉 MyBatis 自带的二级缓存;日记读多写少但单用户量小,缓存收益抵不上一致性成本
+    cache-enabled: false
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+      # 全局逻辑删除:entities 中名为 deleted 的字段自动生效,
+      # 所有查询自动追加 deleted = 0,deleteById 转为 UPDATE。
+      # 没有该字段的表(tags / entry_tags / bookmarks)不受影响。
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+panel:
+  jwt:
+    # HS256 要求密钥 >= 32 字节,否则启动即抛 WeakKeyException。
+    # 生产环境务必用 JWT_SECRET 环境变量覆盖。
+    secret: ${JWT_SECRET:travel-diary-dev-only-secret-key-please-override-in-production}
+    expire-hours: 168
+  cors:
+    allowed-origins: http://localhost:5174,http://127.0.0.1:5174
+  upload:
+    # 上传目录与对外前缀;改成绝对路径或挂载盘时只动这里
+    dir: ${UPLOAD_DIR:./uploads}
+    max-size: 10485760
+    url-prefix: /uploads
+  seed:
+    # 首次启动时若 users 表为空,写入演示数据。生产环境设 SEED_ENABLED=false
+    enabled: ${SEED_ENABLED:true}
+
+logging:
+  level:
+    com.travel.diary: info
+    # 想看 SQL 时改成 debug(注意会打印全部参数,含密码哈希)
+    com.travel.diary.mapper: info
