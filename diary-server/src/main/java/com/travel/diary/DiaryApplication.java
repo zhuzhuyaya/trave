@@ -1,17 +1,17 @@
 package com.travel.diary;
 
-import com.baomidou.mybatisplus.annotation.DbType;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 /**
- * 旅行日记 · 后端服务入口。
+ * 旅行日记 — 后端服务。
  *
- * @see com.travel.diary.config.WebMvcConfig 认证拦截器与静态资源映射
- * @see com.travel.diary.config.DemoDataInitializer 演示数据
+ * <p>启动前请设置数据库密码:
+ * <pre>DB_PASSWORD=你的密码 mvn spring-boot:run</pre>
  */
 @SpringBootApplication
+@MapperScan("com.travel.diary.mapper")
 public class DiaryApplication {
 
     public static void main(String[] args) {
