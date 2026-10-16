@@ -1,0 +1,10 @@
+# 构建产物不入库 —— 源项目没有 .gitignore(它没把构建目录放进版本管理),
+# 但这个仓库要在本机构建与测试,不挡住 target/ 与 node_modules/ 的话,
+# 每次修改源码再提交都会把一堆 .class 与依赖拖进历史。
+diary-server/target/
+diary-server/uploads/
+diary-web/node_modules/
+diary-web/dist/
+
+.idea/
+*.iml

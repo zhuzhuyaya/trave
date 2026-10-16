@@ -1,0 +1,8 @@
+# node_modules 是宿主机的产物:Windows 上装的放进 alpine 会因平台不匹配的二进制而炸,
+# 而且运行时镜像根本不需要它。
+node_modules/
+*.iml
+
+# dist/ 刻意不排除 —— 走 Dockerfile.runtime 这条路径时,它正是要被 COPY 进
+# nginx 镜像的东西。多传几百 KB 的构建上下文,换两条构建路径共用一份配置。
+# 对多阶段构建无害:vite build 的 emptyOutDir 会把它覆盖掉。

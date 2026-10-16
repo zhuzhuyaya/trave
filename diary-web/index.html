@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <!--
+      不再限制 maximum-scale:桌面浏览器要允许用户缩放(可访问性的硬要求),
+      锁住缩放会把放大页面这条路直接堵死。
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- 让浏览器地址栏与状态栏染上页面底色,而不是白/黑一条 -->
+    <meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1C1C1E" media="(prefers-color-scheme: dark)" />
+
+    <meta name="format-detection" content="telephone=no" />
+
+    <title>旅行日记</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
