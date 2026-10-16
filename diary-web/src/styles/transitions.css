@@ -1,0 +1,73 @@
+/* =============================================================================
+   页面转场
+   ========================================================================== */
+
+/*
+  页面切换:淡入 + 轻微上浮。
+
+  移动版是"新页面从右滑入、旧页面向左退 30%"—— 那是手机的层级语言,
+  暗示"进入下一层"。桌面网页上页面切换不带方向感,整页横向平移
+  在宽屏上会很晃,所以换成一个幅度很小的上浮。
+  mode="out-in" 决定了这里只需要写 enter,旧页面直接让位。
+*/
+.page-enter-active {
+  transition: opacity var(--dur) var(--ease-ios), transform var(--dur) var(--ease-ios);
+}
+
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+/* 用户若在系统里开了"减弱动态效果",就只剩淡入 */
+@media (prefers-reduced-motion: reduce) {
+  .page-enter-from {
+    transform: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   弹窗:从中心轻微放大
+   基准 transform 是 translate(-50%, -50%)(见 Sheet.vue),
+   这里必须把它带上,否则动画期间弹窗会掉到右下角去。
+   ------------------------------------------------------------------------- */
+.modal-enter-active,
+.modal-leave-active {
+  transition: opacity var(--dur-fast) var(--ease-standard),
+    transform var(--dur) var(--ease-ios);
+}
+
+.modal-leave-active {
+  transition: opacity var(--dur-fast) var(--ease-standard);
+}
+
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.96);
+}
+
+/* ---------------------------------------------------------------------------
+   淡入
+   ------------------------------------------------------------------------- */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity var(--dur-fast) var(--ease-standard);
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   列表项入场:逐条轻微上浮。用于首屏内容出现,而不是每次滚动都播。
+   ------------------------------------------------------------------------- */
+.rise-enter-active {
+  transition: opacity var(--dur) var(--ease-ios), transform var(--dur) var(--ease-ios);
+}
+
+.rise-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}

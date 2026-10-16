@@ -1,0 +1,150 @@
+/* =============================================================================
+   Markdown 正文排版
+   渲染后的 .md 容器内样式。目标是中文长文的阅读体验:
+   行高 1.75、段落间距足够、代码块与引用块有明确的视觉区隔,
+   并且全部跟着深色模式走。
+   ========================================================================== */
+
+.md {
+  font-size: var(--text-body);
+  line-height: 1.75;
+  color: var(--label);
+  word-break: break-word;
+}
+
+.md > *:first-child {
+  margin-top: 0;
+}
+
+.md > *:last-child {
+  margin-bottom: 0;
+}
+
+.md h1,
+.md h2,
+.md h3,
+.md h4 {
+  margin: 1.6em 0 0.6em;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.md h1 {
+  font-size: var(--text-title1);
+}
+.md h2 {
+  font-size: var(--text-title2);
+}
+.md h3 {
+  font-size: var(--text-title3);
+}
+.md h4 {
+  font-size: var(--text-headline);
+}
+
+.md p {
+  margin: 0 0 1.05em;
+}
+
+/* 中文段落首行不缩进 —— 缩进是印刷体例,屏幕阅读靠段间距分隔就够 */
+.md strong {
+  font-weight: 700;
+}
+
+.md em {
+  font-style: italic;
+}
+
+.md a {
+  color: var(--ios-blue);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.md ul,
+.md ol {
+  margin: 0 0 1.05em;
+  padding-left: 1.5em;
+}
+
+.md ul {
+  list-style: disc;
+}
+
+.md ol {
+  list-style: decimal;
+}
+
+.md li {
+  margin-bottom: 0.4em;
+}
+
+.md li::marker {
+  color: var(--label-3);
+}
+
+.md blockquote {
+  margin: 0 0 1.05em;
+  padding: 0.2em 0 0.2em 1em;
+  border-left: 3px solid var(--ios-blue);
+  color: var(--label-2);
+}
+
+.md code {
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  background: var(--bg-fill);
+  font-family: var(--font-num);
+  font-size: 0.9em;
+}
+
+.md pre {
+  margin: 0 0 1.05em;
+  padding: var(--space-3);
+  border-radius: var(--radius-cell);
+  background: var(--ios-gray6);
+  overflow-x: auto;
+}
+
+@media (prefers-color-scheme: dark) {
+  .md pre {
+    background: var(--ios-gray5);
+  }
+}
+
+.md pre code {
+  padding: 0;
+  background: none;
+  font-size: var(--text-footnote);
+  line-height: 1.6;
+}
+
+.md hr {
+  margin: 1.8em 0;
+  border: none;
+  border-top: 1px solid var(--separator);
+}
+
+.md img {
+  margin: 0.4em 0 1.05em;
+  border-radius: var(--radius-cell);
+}
+
+.md table {
+  width: 100%;
+  margin: 0 0 1.05em;
+  border-collapse: collapse;
+  font-size: var(--text-subhead);
+}
+
+.md th,
+.md td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--separator);
+  text-align: left;
+}
+
+.md th {
+  font-weight: 600;
+  color: var(--label-2);
+}

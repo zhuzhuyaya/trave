@@ -1,0 +1,189 @@
+/* =============================================================================
+   旅行日记 · 设计令牌
+
+   iOS 原生观感的来源不是"圆角 + 蓝色",而是这一整套系统化数值:
+  系统色板、层级化的 label 透明度、SF Pro 的字号阶梯、连续圆角、
+   以及区分"页面底 / 分组底 / 卡片底"的三层背景。
+
+   全部值取自 Apple Human Interface Guidelines 的公开数值,
+   深色模式用 prefers-color-scheme 整体切换 —— 不靠 JS 加 class,
+   这样首屏在 JS 执行前就已经是对的颜色,不会闪一下白。
+   ========================================================================== */
+
+:root {
+  /* ---- 系统色(iOS System Colors)----
+     用系统色而不是自己挑的"好看的颜色",是这套界面看起来像原生的第一步。 */
+  --ios-blue: #007aff;
+  --ios-green: #34c759;
+  --ios-indigo: #5856d6;
+  --ios-orange: #ff9500;
+  --ios-pink: #ff2d55;
+  --ios-purple: #af52de;
+  --ios-red: #ff3b30;
+  --ios-teal: #5ac8fa;
+  --ios-yellow: #ffcc00;
+  --ios-mint: #00c7be;
+  --ios-brown: #a2845e;
+
+  /* ---- 灰阶 ---- */
+  --ios-gray: #8e8e93;
+  --ios-gray2: #aeaeb2;
+  --ios-gray3: #c7c7cc;
+  --ios-gray4: #d1d1d6;
+  --ios-gray5: #e5e5ea;
+  --ios-gray6: #f2f2f7;
+
+  /* ---- 语义色 · 浅色模式 ---- */
+  --bg: #ffffff;              /* 页面底(systemBackground) */
+  --bg-elevated: #ffffff;      /* 抬升面:卡片、导航栏的实底色 */
+  --bg-grouped: #f2f2f7;       /* 分组页底(systemGroupedBackground) */
+  --bg-grouped-cell: #ffffff;  /* 分组里的单元格底 */
+  --bg-hover: #e5e5ea;         /* 按压/悬停 */
+  --bg-fill: rgba(120, 120, 128, 0.16); /* 输入框、分段控件的底 */
+
+  --label: #000000;
+  --label-2: rgba(60, 60, 67, 0.6);   /* 次要文字:副标题、说明 */
+  --label-3: rgba(60, 60, 67, 0.3);   /* 三级:占位符、禁用 */
+  --label-4: rgba(60, 60, 67, 0.18);
+
+  --separator: rgba(60, 60, 67, 0.29); /* 发丝线 */
+
+  /* 毛玻璃材质:导航栏与 TabBar 用它,能透出下方滚动的内容 */
+  --material: rgba(249, 249, 249, 0.82);
+  --material-thick: rgba(249, 249, 249, 0.94);
+  --blur: saturate(180%) blur(20px);
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.04);
+  --shadow-float: 0 4px 16px rgba(0, 0, 0, 0.14);
+
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ios-gray: #8e8e93;
+    --ios-gray2: #636366;
+    --ios-gray3: #48484a;
+    --ios-gray4: #3a3a3c;
+    --ios-gray5: #2c2c2e;
+    --ios-gray6: #1c1c1e;
+
+    --bg: #000000;
+    --bg-elevated: #1c1c1e;
+    --bg-grouped: #000000;
+    --bg-grouped-cell: #1c1c1e;
+    --bg-hover: #2c2c2e;
+    --bg-fill: rgba(120, 120, 128, 0.32);
+
+    --label: #ffffff;
+    --label-2: rgba(235, 235, 245, 0.6);
+    --label-3: rgba(235, 235, 245, 0.3);
+    --label-4: rgba(235, 235, 245, 0.18);
+
+    --separator: rgba(84, 84, 88, 0.65);
+
+    --material: rgba(29, 29, 31, 0.72);
+    --material-thick: rgba(29, 29, 31, 0.92);
+
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-float: 0 4px 16px rgba(0, 0, 0, 0.5);
+  }
+}
+
+:root {
+  /* ---- 字体 ----
+     优先苹果系统字体:在 iPhone/Mac 上直接命中 SF Pro,
+     这就是"原生"的本体。后面的中文回退到苹方,Windows 上退到微软雅黑。
+     全程零网络请求 —— 首屏排版不该等一个字体文件。 */
+  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display',
+    'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  /* 数字与英文用等宽,日期、计数对齐得更整齐 */
+  --font-num: 'SF Mono', ui-monospace, 'Cascadia Code', 'JetBrains Mono', Menlo, monospace;
+
+  /* ---- 字号阶梯(iOS Typography,size / line-height)---- */
+  --text-large-title: 34px;
+  --lh-large-title: 41px;
+  --text-title1: 28px;
+  --lh-title1: 34px;
+  --text-title2: 22px;
+  --lh-title2: 28px;
+  --text-title3: 20px;
+  --lh-title3: 25px;
+  --text-headline: 17px;
+  --lh-headline: 22px;
+  --text-body: 17px;
+  --lh-body: 22px;
+  --text-callout: 16px;
+  --lh-callout: 21px;
+  --text-subhead: 15px;
+  --lh-subhead: 20px;
+  --text-footnote: 13px;
+  --lh-footnote: 18px;
+  --text-caption1: 12px;
+  --lh-caption1: 16px;
+  --text-caption2: 11px;
+  --lh-caption2: 13px;
+
+  /* ---- 圆角 ----
+     iOS 的圆角是"连续圆角"(squircle),CSS 表达不了,但用略大的半径
+     比 Apple 标注值更接近观感 —— 10px 的卡片配 10px 半径看起来才对。 */
+  --radius-card: 12px;
+  --radius-cell: 10px;
+  --radius-sheet: 14px;
+  --radius-field: 10px;
+  --radius-bubble: 18px;
+  --radius-full: 999px;
+
+  /* ---- 间距 ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* 内容左右留白。桌面版比手机版宽一档:16px 的边距在宽屏上看着太局促 */
+  --gutter: 24px;
+
+  /* ---- 布局宽度 ----
+     网页版的骨架由这三个值撑起来:
+       content-max 给列表/网格这类"越宽越好"的页面,
+       list-max    给时间线这种卡片列表(再宽一行文字就读不动了),
+       reading-max 给正文阅读页。
+     正文一行的最佳长度约 35-45 个中文字,按 17px 算就是 600-780px,
+     所以阅读栏必须比内容栏窄得多,不能共用一个宽度。
+
+     --page-max 是"当前页的内容栏宽度":视图根节点覆写它,
+     页面标题与正文就一起换宽 —— 两者必须一致,
+     否则标题会比它下面的正文宽出来一截。 */
+  --content-max: 1120px;
+  --list-max: 860px;
+  --reading-max: 760px;
+  --page-max: var(--content-max);
+  --sticky-offset: var(--topnav-h); /* 吸顶元素的 top 基准:让开顶部导航栏 */
+
+  /* ---- 固定高度 ---- */
+  --topnav-h: 56px;       /* 顶部导航栏 */
+  --field-h: 44px;
+  --button-h: 44px;
+
+  /* ---- 动效 ----
+     iOS 的曲线不是 ease-in-out。这条常用于过渡的是"先快后极慢",
+     观感上像有惯性 —— 换成 linear 或 ease 立刻就不像原生动画了。 */
+  --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast: 0.18s;
+  --dur: 0.3s;
+  --dur-slow: 0.45s;
+}
+
+/* 用户若在系统里开了"减弱动态效果",就把所有动画压到几乎不存在。
+   这不是可选项 —— 前庭功能敏感的人会因为页面滑动而难受。 */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0.01s;
+    --dur: 0.01s;
+    --dur-slow: 0.01s;
+  }
+}

@@ -1,0 +1,410 @@
+/* =============================================================================
+   基础层:重置 + 桌面端交互 + 通用原子类
+   ========================================================================== */
+
+@import './tokens.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  /* 滚动条的 Firefox 写法。WebKit 的写法在下面。 */
+  scrollbar-color: rgba(120, 120, 128, 0.5) transparent;
+}
+
+body {
+  margin: 0;
+  /* 页面底用分组底色:纯白页面看起来像"没写 CSS" */
+  background: var(--bg-grouped);
+  color: var(--label);
+  font-family: var(--font);
+  font-size: var(--text-body);
+  line-height: var(--lh-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/*
+  应用容器。
+
+  改版前这里有一个 max-width: 480px + 父级 flex 居中,是为了在电脑上
+  把手机版式原样搬过来;现在页面本身就是为宽屏排的,容器回到满宽。
+
+  滚动交给浏览器默认的窗口滚动 —— 不再让每个页面自己在内部滚。
+  这样浏览器查找、滚动位置恢复(router 的 scrollBehavior)、
+  sticky 定位才都按网页的规则工作。
+*/
+#app {
+  min-height: 100vh;
+  background: var(--bg-grouped);
+  display: flex;
+  flex-direction: column;
+}
+
+
+h1, h2, h3, h4, h5, h6, p, figure, blockquote, dl, dd {
+  margin: 0;
+}
+
+ul, ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+a {
+  color: var(--ios-blue);
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+/* ---------------------------------------------------------------------------
+   正文区域保留选中能力:日记内容是要能复制分享的。
+   其余 UI 一律禁止选中 —— 拖选时把导航栏标题也选中了很出戏。
+   ------------------------------------------------------------------------- */
+.user-selectable {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* ---------------------------------------------------------------------------
+   滚动条
+   网页版必须看得见滚动条:它同时承担"这页还有多长"和"我在哪个位置"两条信息,
+   隐藏掉就等于把导航能力也一起藏了。样式上做窄做淡,不跟内容抢注意力。
+   ------------------------------------------------------------------------- */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* border + background-clip 让滑块比轨道窄一圈,滚动条才显得轻 */
+::-webkit-scrollbar-thumb {
+  background: rgba(120, 120, 128, 0.42);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(120, 120, 128, 0.68);
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+/* 弹窗正文这类内部滚动区:同一个滚动条,容器本身还能 contain 住滚动链 */
+.scroll-area {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+
+/* ---------------------------------------------------------------------------
+   页面内容栏
+   每个视图的内容区(.page__scroll)与页面标题区(.navbar__inner)都套这一条,
+   宽度统一由 --page-max 决定 —— 视图根节点覆写这个变量即可整页换宽。
+   两者必须用同一个值,否则标题会比它下面的正文宽出来一截。
+
+   **左右不留白**:内容是卡片和分组,它们自己带着 --gutter 的内缩
+   (见 EntryCard / .group)。容器再加一层内边距的话,
+   卡片离栏边就变成 48px,发丝线也接不到栏边了。
+   ------------------------------------------------------------------------- */
+.page__scroll,
+.navbar__inner,
+.page__footer {
+  width: 100%;
+  max-width: var(--page-max);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* 内容区只给一个默认的下留白,上留白由各页自己的首个区块决定 */
+.page__scroll {
+  padding-bottom: var(--space-8);
+}
+
+/* ---------------------------------------------------------------------------
+   焦点环
+   用 :focus-visible 而不是 :focus:鼠标点击不该出现轮廓,
+   但键盘 Tab 到某个按钮必须看得见 —— 后者是无障碍的硬要求。
+   ------------------------------------------------------------------------- */
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--ios-blue) 55%, transparent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ---------------------------------------------------------------------------
+   发丝线
+   1px 的边框在 2x/3x 屏上看起来比原生粗一倍。iOS 的做法是画 1px 再缩放 0.5。
+   ------------------------------------------------------------------------- */
+.hairline {
+  position: relative;
+}
+
+.hairline::after {
+  content: '';
+  position: absolute;
+  left: var(--gutter);
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--separator);
+  transform: scaleY(0.5);
+  transform-origin: bottom;
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------------------
+   分组列表(iOS Inset Grouped List)
+   页面底是灰的,分组是一块白圆角卡片,单元格之间是发丝线。
+   这是"我的"页与详情页元信息区的标准形态。
+   ------------------------------------------------------------------------- */
+.group {
+  margin: var(--space-4) var(--gutter);
+  background: var(--bg-grouped-cell);
+  border-radius: var(--radius-cell);
+  overflow: hidden;
+}
+
+.group-title {
+  margin: var(--space-6) var(--gutter) var(--space-2);
+  font-size: var(--text-footnote);
+  line-height: var(--lh-footnote);
+  color: var(--label-2);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.group-footer {
+  margin: var(--space-2) var(--gutter) 0;
+  font-size: var(--text-footnote);
+  line-height: var(--lh-footnote);
+  color: var(--label-2);
+}
+
+/* ---------------------------------------------------------------------------
+   按钮
+   ------------------------------------------------------------------------- */
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: var(--button-h);
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-field);
+  font-size: var(--text-callout);
+  font-weight: 600;
+  white-space: nowrap;
+  transition: opacity var(--dur-fast) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-standard),
+    filter var(--dur-fast) var(--ease-standard),
+    background var(--dur-fast) var(--ease-standard);
+}
+
+/*
+  悬停反馈。
+  移动端只有"按下"这一个状态,桌面端鼠标悬停是最主要的可点性提示 ——
+  只有 :active 的话,鼠标移上去按钮毫无反应,像块不能点的图。
+  用 brightness 而不是逐个改底色:六个变体(primary/secondary/danger/ghost…)
+  共用一条规则,深色模式下反过来提亮即可。
+*/
+.btn:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+
+.btn--secondary:hover:not(:disabled),
+.btn--danger:hover:not(:disabled),
+.btn--ghost:hover:not(:disabled) {
+  background: var(--bg-hover);
+  filter: none;
+}
+
+/* 按下时整体缩一点点 + 变淡 —— 这是 iOS 按钮的即时反馈,
+   没有它按钮会显得"点了没反应"。 */
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+  opacity: 0.75;
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.btn--primary {
+  background: var(--ios-blue);
+  color: #fff;
+}
+
+.btn--secondary {
+  background: var(--bg-fill);
+  color: var(--ios-blue);
+}
+
+.btn--danger {
+  background: var(--bg-fill);
+  color: var(--ios-red);
+}
+
+.btn--ghost {
+  background: transparent;
+  color: var(--ios-blue);
+  height: auto;
+  padding: 0;
+}
+
+.btn--block {
+  width: 100%;
+}
+
+/* ---------------------------------------------------------------------------
+   表单
+   ------------------------------------------------------------------------- */
+.field {
+  width: 100%;
+  height: var(--field-h);
+  padding: 0 var(--space-3);
+  background: var(--bg-fill);
+  border: 1px solid transparent;
+  border-radius: var(--radius-field);
+  font-size: var(--text-body);
+  transition: border-color var(--dur-fast) var(--ease-standard),
+    background var(--dur-fast) var(--ease-standard);
+}
+
+.field::placeholder {
+  color: var(--label-3);
+}
+
+/* 悬停时给一条淡淡的描边,把"这里能输入"提前说出来 */
+.field:hover {
+  border-color: var(--label-4);
+}
+
+.field:focus {
+  border-color: var(--ios-blue);
+}
+
+textarea.field {
+  height: auto;
+  padding: var(--space-3);
+  line-height: var(--lh-body);
+  resize: vertical;
+}
+
+.field-label {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: var(--text-subhead);
+  color: var(--label-2);
+}
+
+/* ---------------------------------------------------------------------------
+   若干通用工具类
+   ------------------------------------------------------------------------- */
+.stack {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+}
+
+.row--between {
+  justify-content: space-between;
+}
+
+.grow {
+  flex: 1;
+  min-width: 0; /* 让内部的 text-overflow: ellipsis 生效 */
+}
+
+.center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.text-secondary {
+  color: var(--label-2);
+}
+
+.text-tertiary {
+  color: var(--label-3);
+}
+
+/* 单行省略 */
+.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 两行省略 */
+.ellipsis-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 图片占位块:没有封面图时用它撑住版式,而不是留一块空白。
+   用渐变而不是灰色方块,列表看起来才不会像加载失败。 */
+.thumb-placeholder {
+  background: linear-gradient(135deg, #7db8f0, #a78bfa 55%, #f0a6c8);
+}
+
+@media (prefers-color-scheme: dark) {
+  .thumb-placeholder {
+    background: linear-gradient(135deg, #2a4a6b, #453a6b 55%, #6b3a52);
+  }
+
+  /*
+    深色下按钮本来就是深底,再压暗就看不见了 —— hover 反过来提亮。
+    这是 brightness 方案唯一需要特判的地方。
+  */
+  .btn:hover:not(:disabled) {
+    filter: brightness(1.22);
+  }
+
+  .btn--secondary:hover:not(:disabled),
+  .btn--danger:hover:not(:disabled),
+  .btn--ghost:hover:not(:disabled) {
+    filter: none;
+  }
+}
