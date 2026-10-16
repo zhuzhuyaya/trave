@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Maven 镜像配置。
+
+  为什么要显式指定:容器内构建时,镜像里没有宿主机的 ~/.m2/settings.xml,
+  不写这个文件的话 mvn 会直连 repo.maven.apache.org —— 国内服务器上
+  通常是几十 KB/s,一次构建要等十几分钟。
+
+  为什么 mirrorOf 只写 central 而不是 *:写成 * 会把所有仓库统一劫持到
+  阿里云,而阿里云的中央仓偶尔缺个别构件(返回 404),报错信息完全看不出
+  是镜像的问题,能查半天。只代理 central,其余仓库(如 pom 里声明的第三方源)
+  照常直连。
+-->
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0
+                              https://maven.apache.org/xsd/settings-1.0.0.xsd">
+  <mirrors>
+    <mirror>
+      <id>aliyun-central</id>
+      <name>Aliyun Public Central</name>
+      <url>https://maven.aliyun.com/repository/public</url>
+      <mirrorOf>central</mirrorOf>
+    </mirror>
+  </mirrors>
+</settings>

@@ -1,0 +1,14 @@
+# 宿主机产物,不进构建上下文。
+#
+# target 这里写成 target/* 而不是 target/:Dockerfile.runtime 需要把 fat jar
+# 拷进镜像,而要"排除整个目录后再放行里面的某个文件",只能排除目录下的通配内容
+# 再用 ! 放行 —— 写成 target/ 的话 Docker 会直接跳过这个目录,后面的 ! 永远不生效,
+# 报错是 COPY failed: no source files were specified,完全看不出是 .dockerignore 干的。
+target/*
+!target/diary-server-*.jar
+
+# 真图存在数据卷里,线上不认这份本地文件
+uploads/
+
+.idea/
+*.iml
