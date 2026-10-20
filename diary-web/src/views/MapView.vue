@@ -173,11 +173,14 @@ async function setupMap(): Promise<void> {
 
   // 瓦片源原写死 OSM 的 tile.openstreetmap.org,但该域名在很多网络环境
   // 连不通(此处实测全部连接被拒/超时),地图会变成一片空灰底。
-  // 改用 CARTO 的 raster 瓦片:渲染的是 OSM 数据,同样 Web Mercator 坐标,
-  // 点位不会偏;不用 {s} 子域轮换 —— CARTO 的 a/b/c 三个子域可达性也不一致,主域走 CDN 最稳。
-  L.tileLayer('https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+  // 候选源逐一实测后的取舍:
+  //   cartocdn  —— 现在要 API key,瓦片全是 "API KEY REQUIRED" 占位图,不能用;
+  //   ArcGIS    —— 中国区域高缩放级别回 "Map data not yet available",不能用;
+  //   高德       —— 内容可用但坐标系是 GCJ02,点位会整体偏移约 500 米,不能用;
+  //   openstreetmap.de —— OSM 德国镜像(FOSSGIS 运营,OSM 官方认可的基础设施),
+  //   数据与坐标同 OSM 主站,中国区域细节齐全,四子域轮换可达。改用它。
+  L.tileLayer('https://{s}.tile.openstreetmap.de/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     maxZoom: 19,
   }).addTo(map)
 
