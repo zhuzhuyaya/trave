@@ -10,7 +10,7 @@ spring:
   application:
     name: travel-diary
 
-  # 密码一律走环境变量,代库中零硬编码。
+  # 密码一律走环境变量,代码库中零硬编码。
   # 启动方式:DB_PASSWORD=你的密码 mvn spring-boot:run
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
