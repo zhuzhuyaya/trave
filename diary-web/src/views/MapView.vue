@@ -179,9 +179,21 @@ async function setupMap(): Promise<void> {
   //   高德       —— 内容可用但坐标系是 GCJ02,点位会整体偏移约 500 米,不能用;
   //   openstreetmap.de —— OSM 德国镜像(FOSSGIS 运营,OSM 官方认可的基础设施),
   //   数据与坐标同 OSM 主站,中国区域细节齐全,四子域轮换可达。改用它。
+  //
+  // 网络实测:本环境到该镜像单张瓦片 1.0~1.8s(HTTP/1.1,四子域并发上限 4 路),
+  // 放大一级约 12~21 张新瓦片,默认配置下用户会看着灰块一片片浮现。
+  // 瓦片层的几个参数就是为这种"上游慢"的网络准备的:
+  //   keepBuffer: 4×宽一圈的父级瓦片缓存(默认 2),放大后周边回缩要先有图可垫;
+  //   updateWhenIdle: false —— 缩放动画进行中就开始拉新瓦片,动画结束 ~= 图已半就,
+  //   而不是"动画完 → 才发请求 → 等一个 1.5s";crossOrigin 让瓦片可进缓存复用。
   L.tileLayer('https://{s}.tile.openstreetmap.de/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     maxZoom: 19,
+    keepBuffer: 4,
+    updateWhenIdle: false,
+    updateWhenZooming: true,
+    minUpdateInterval: 150,
+    crossOrigin: true,
   }).addTo(map)
 
   // 缩放控件挪到右下:左上角留给导航栏,右上角有定位按钮
