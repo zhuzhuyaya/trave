@@ -171,8 +171,13 @@ async function setupMap(): Promise<void> {
     worldCopyJump: true,
   }).setView([35.0, 105.0], 3)
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  // 瓦片源原写死 OSM 的 tile.openstreetmap.org,但该域名在很多网络环境
+  // 连不通(此处实测全部连接被拒/超时),地图会变成一片空灰底。
+  // 改用 CARTO 的 raster 瓦片:渲染的是 OSM 数据,同样 Web Mercator 坐标,
+  // 点位不会偏;不用 {s} 子域轮换 —— CARTO 的 a/b/c 三个子域可达性也不一致,主域走 CDN 最稳。
+  L.tileLayer('https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
     maxZoom: 19,
   }).addTo(map)
 
