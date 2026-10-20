@@ -8,3 +8,6 @@ diary-web/dist/
 
 .idea/
 *.iml
+
+# Playwright 调试产物
+.playwright-mcp/
