@@ -4,6 +4,8 @@
 diary-server/target/
 diary-server/uploads/
 diary-server/tile-cache/
+# 在线地名检索的磁盘缓存(与瓦片缓存同性质:运行时可再生,不进历史)
+diary-server/geo-cache/
 diary-web/node_modules/
 diary-web/dist/
 
@@ -19,6 +21,10 @@ tools/html2video/.browsers/
 tools/html2video/out/
 tools/html2video/sample/.tmp-h2v-*.html
 
-# geo-build 的原始上游数据(3.5MB,按 tools/geo-build/README.md 里的 curl 命令重下)
+# geo-build 的原始上游数据(省界 3.5MB + 市级 3.6MB + 县级 22MB,
+# 按 tools/geo-build/README.md 里的命令重下)
 # 只把生成产物 tools/geo-build/out/ 入库,原始数据不进历史
 tools/geo-build/geo-data/
+
+# 本地工具会话目录
+.snow/

@@ -3,7 +3,7 @@
  * 足迹地图(Leaflet + OpenStreetMap),两种看法:
  *
  * - **足迹**:照片标记按时间连成虚线路线,一地一卡的相册观感;
- * - **点亮**:省级/国家级板块拼成的底图,去过的地方才点亮,拼图观感。
+ * - **点亮**:区县/国家级板块拼成的底图,去过的地方才点亮,拼图观感。
  *
  * Leaflet 是命令式的 DOM 库,和 Vue 的声明式模型天然隔一层。
  * 这一页的处理方式是:Vue 只管"数据"和"面板 UI",
@@ -27,7 +27,7 @@
  *    "点亮"的语义靠色差表达,不靠弹出气泡。
  *
  * 4. 地图与板块数据都按需异步加载:Leaflet 底图 CSS 一百多 KB、
- *    板块数据七百多 KB,它们只在地图页用到,不该拖慢其他页面的首屏。
+ *    板块数据 1.4MB(gzip 不到一半),它们只在地图页用到,不该拖慢其他页面的首屏。
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -41,6 +41,7 @@ import { useUiStore } from '@/stores/ui'
 import type { FootprintVO, MapPointVO } from '@/api/types'
 import { formatDateCN } from '@/utils/time'
 import { gradientFor } from '@/utils/misc'
+import { wgsToGcj } from '@/utils/coord'
 import {
   geometryBounds,
   loadLitRegions,
@@ -93,7 +94,7 @@ const cityCount = computed(() => {
 
 const tripCount = computed(() => footprints.value.filter((item) => item.tripId != null).length)
 
-/** 点亮了多少块:省份与国家可能重叠(点在香港这类省级面 + 国家面上都有命中),合并计数 */
+/** 点亮了多少块:市块与国家可能重叠(点在港澳台这类整域块 + 国家面上曾有的双份已去重),合并计数 */
 const litCount = computed(() => litById.value.size)
 
 /* ---------------------------------------------------------------------------
@@ -127,7 +128,10 @@ async function computeLit(): Promise<void> {
     bundleCache = bundle
     const lit = new Map<string, { region: LitRegion; count: number }>()
     for (const point of points.value) {
-      const region = regionOf(point.longitude, point.latitude, bundle)
+      // 板块多边形是 GCJ02(DataV),足迹点存的是 WGS84(点选/在线检索落图前已纠偏):
+      // 判定前把点转进 GCJ,贴县界的点才不会判错区
+      const [gLng, gLat] = wgsToGcj(point.longitude, point.latitude)
+      const region = regionOf(gLng, gLat, bundle)
       if (!region) continue
       const entry = lit.get(region.id)
       if (entry) entry.count += 1
@@ -244,7 +248,7 @@ function buildLitLayer(): void {
 
   for (const { region } of litById.value.values()) {
     L.geoJSON(region.geometry, {
-      // 面有细描边:点亮块的轮廓直接咬合在影子层的省界线里,像拼图块嵌进去
+      // 面有细描边:点亮块的轮廓直接咬合在影子层的县界线里,像拼图块嵌进去
       style: {
         color: '#007aff',
         weight: 1,
@@ -292,7 +296,7 @@ function buildShadowLayer(): void {
   if (!map || !shadowLayer) return
   const L = leafletModule()
   shadowLayer.clearLayers()
-  const bundle = bundleCache ?? { provinces: [], countries: [] }
+  const bundle = bundleCache ?? { cities: [], countries: [] }
   const litNow = litById.value
   // 未点亮的面:一层几乎透明的灰,勾出拼图底板,让"没来的地方"与"海"区分开。
   // 已点亮的面**跳过**,点亮层会给同一几何上色 —— 两层各画一遍既浪费又叠深。
@@ -309,10 +313,10 @@ function buildShadowLayer(): void {
       },
     }).addTo(shadowLayer!)
   }
-  for (const region of bundle.provinces) addShadow(region)
-  // 国家面里的 China 已被省份面替代;港澳台在国家数据里独立成面,保留
+  for (const region of bundle.cities) addShadow(region)
+  // 中国的面(内地市县块 + 港澳台整域块)已由 cities 提供,国家面里跳过
   for (const region of bundle.countries) {
-    if (region.name === '中国') continue
+    if (region.id === 'CHN') continue
     addShadow(region)
   }
 }
@@ -366,7 +370,7 @@ async function applyMode(): Promise<void> {
   footprintLayer?.removeFrom(map)
   await computeLit()
   if (litById.value.size === 0 && litLoading.value) {
-    // 板块数据(约 800KB)还在拉:面板在转圈,层等 computeLit 完成后的重放再画
+    // 板块数据(约 1.4MB)还在拉:面板在转圈,层等 computeLit 完成后的重放再画
     return
   }
   ensureLitLayers()
@@ -413,7 +417,7 @@ async function setupMap(): Promise<void> {
   //
   // 瓦片层参数保留(上游慢的处境没变,只是慢的那一跳从浏览器挪到了服务器,
   // 被缓存摊平):keepBuffer 4 垫底、动画中就拉新瓦片、crossOrigin 允许读像素。
-  L.tileLayer('/tiles/{z}/{x}/{y}.png', {
+  const tileLayer = L.tileLayer('/tiles/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     maxZoom: 19,
     keepBuffer: 4,
@@ -421,6 +425,21 @@ async function setupMap(): Promise<void> {
     updateWhenZooming: true,
     crossOrigin: true,
   }).addTo(map)
+
+  // 上游(tile.openstreetmap.de)偶发超时,失败的瓦片会停留成灰块。
+  // 重试一次:延迟几秒重置 img.src 触发重新请求 —— 那 tile 的回源早就结束,
+  // TileService 磁盘缓存里大概率已落盘,重试即毫秒级命中。
+  tileLayer.on('tileerror', (event) => {
+    const img = event.tile as HTMLImageElement
+    const coords = event.coords as { z: number; x: number; y: number }
+    const original = `/tiles/${coords.z}/${coords.x}/${coords.y}.png`
+    // 只重试一次:retryWeaks 记住重试过的,避免上游持续故障时无限打转
+    if (img.dataset.retry || img.src.endsWith(original)) return
+    img.dataset.retry = '1'
+    setTimeout(() => {
+      img.src = original
+    }, 3000)
+  })
 
   // 缩放控件挪到右下:左上角留给导航栏,右上角有定位按钮
   L.control.zoom({ position: 'bottomright' }).addTo(map)
