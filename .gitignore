@@ -3,6 +3,7 @@
 # 每次修改源码再提交都会把一堆 .class 与依赖拖进历史。
 diary-server/target/
 diary-server/uploads/
+diary-server/tile-cache/
 diary-web/node_modules/
 diary-web/dist/
 
