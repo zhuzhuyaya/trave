@@ -8,6 +8,7 @@ import com.travel.diary.common.Markdown;
 import com.travel.diary.common.PageResult;
 import com.travel.diary.dto.EntryQuery;
 import com.travel.diary.dto.EntryRequest;
+import com.travel.diary.dto.EntryTagRow;
 import com.travel.diary.entity.Bookmark;
 import com.travel.diary.entity.Entry;
 import com.travel.diary.entity.EntryPhoto;
@@ -23,6 +24,8 @@ import com.travel.diary.service.EntryService;
 import com.travel.diary.service.PhotoService;
 import com.travel.diary.service.TripService;
 import com.travel.diary.service.ViewAssembler;
+import com.travel.diary.vo.BookmarkPageVO;
+import com.travel.diary.vo.BookmarkTagVO;
 import com.travel.diary.vo.EntryDetailVO;
 import com.travel.diary.vo.EntrySummaryVO;
 import com.travel.diary.vo.ToggleVO;
@@ -34,8 +37,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -236,9 +242,73 @@ public class EntryServiceImpl implements EntryService {
         return ToggleVO.of(active, count);
     }
 
-    /* ---------------------------------------------------------------------
-     *  权限
-     * ------------------------------------------------------------------- */
+    @Override
+    public BookmarkPageVO listBookmarks(String tag, LoginUser user) {
+        // 全量候选一次取回(单用户收藏规模是几十条),标签筛选与打标计数都在内存里做,
+        // 换筛选条件不会多打一次 SQL
+        List<Long> entryIds = bookmarkMapper.findReadableEntryIds(user.id());
+
+        List<Long> filteredIds = entryIds;
+        boolean filtered = tag != null && !tag.isBlank();
+        if (filtered && entryIds.size() > 1) {
+            // 标签 → entry 映射只查一次;候选 id 多而命中标签的少,内存交集最省
+            Map<Long, List<String>> tagsByEntry = tagNamesByEntry(entryIds);
+            filteredIds = entryIds.stream()
+                    .filter(id -> tagsByEntry.getOrDefault(id, List.of()).contains(tag.trim()))
+                    .toList();
+        }
+
+        // 分页在 id 列表上做,再批量装配 —— 与 PageResult 的语义保持一致
+        long page = PageResult.safePage(null);
+        long size = PageResult.MAX_SIZE;
+        long fromIndex = Math.min((page - 1) * size, filteredIds.size());
+        long toIndex = Math.min(fromIndex + size, filteredIds.size());
+        List<Long> pageIds = filteredIds.subList((int) fromIndex, (int) toIndex);
+
+        List<Entry> entries = pageIds.isEmpty()
+                ? List.of()
+                : entryMapper.selectBatchIds(pageIds);
+        // selectBatchIds 不保序,按收藏的时间(new→old)重排回 id 顺序
+        Map<Long, Entry> entryById = entries.stream()
+                .collect(Collectors.toMap(Entry::getId, e -> e));
+        List<EntrySummaryVO> list = pageIds.stream()
+                .map(entryById::get)
+                .filter(Objects::nonNull)
+                .map(entry -> assembler.toSummaries(List.of(entry), user).get(0))
+                .toList();
+
+        // 筛选 chips:未筛选时统计全量收藏,已筛选时统计命中集 ——
+        // 用过滤后的集合,数字才是"选这个标签还能看到几篇"
+        List<Long> countableIds = filtered ? filteredIds : entryIds;
+        Map<String, Long> counts = new LinkedHashMap<>();
+        if (!countableIds.isEmpty()) {
+            Map<Long, List<String>> tagsByEntry = tagNamesByEntry(countableIds);
+            for (List<String> names : tagsByEntry.values()) {
+                for (String name : names) {
+                    counts.merge(name, 1L, Long::sum);
+                }
+            }
+        }
+        List<BookmarkTagVO> tags = counts.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed()
+                        .thenComparing(Map.Entry.comparingByKey()))
+                .map(e -> new BookmarkTagVO(e.getKey(), e.getValue()))
+                .toList();
+
+        BookmarkPageVO vo = new BookmarkPageVO();
+        vo.setList(list);
+        vo.setTotal(filteredIds.size());
+        vo.setTags(tags);
+        vo.setFiltered(filtered);
+        return vo;
+    }
+
+    /** 一批日记的标签名映射,单次 SQL(复用 ViewAssembler 同款 mapper 方法)。 */
+    private Map<Long, List<String>> tagNamesByEntry(List<Long> entryIds) {
+        return tagMapper.findByEntryIds(entryIds).stream()
+                .collect(Collectors.groupingBy(EntryTagRow::getEntryId,
+                        Collectors.mapping(EntryTagRow::getName, Collectors.toList())));
+    }
 
     @Override
     public Entry requireReadable(Long id, LoginUser viewer) {

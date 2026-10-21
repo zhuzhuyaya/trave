@@ -7,6 +7,7 @@ import com.travel.diary.dto.EntryRequest;
 import com.travel.diary.security.RequireLogin;
 import com.travel.diary.security.UserContext;
 import com.travel.diary.service.EntryService;
+import com.travel.diary.vo.BookmarkPageVO;
 import com.travel.diary.vo.EntryDetailVO;
 import com.travel.diary.vo.EntrySummaryVO;
 import com.travel.diary.vo.ToggleVO;
@@ -83,5 +84,19 @@ public class EntryController {
     @RequireLogin
     public R<ToggleVO> toggleBookmark(@PathVariable Long id) {
         return R.ok(entryService.toggleBookmark(id, UserContext.require()));
+    }
+
+    /**
+     * 收藏列表。
+     *
+     * <p>路径刻意放在 /entries 之下而不是 /bookmarks:返回的每个元素都是
+     * 标准的日记卡片 VO,前端时间线与收藏页共用同一套卡片组件与类型。
+     * tag 为空时返回全部收藏;tags 字段(当前收藏内出现的标签及计数)
+     * 无论筛选与否都会带上,前端渲染筛选 chips 不用二次请求。
+     */
+    @GetMapping("/bookmarks")
+    @RequireLogin
+    public R<BookmarkPageVO> bookmarks(@org.springframework.web.bind.annotation.RequestParam(required = false) String tag) {
+        return R.ok(entryService.listBookmarks(tag, UserContext.require()));
     }
 }
