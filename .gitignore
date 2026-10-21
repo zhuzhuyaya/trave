@@ -18,3 +18,7 @@ tools/html2video/node_modules/
 tools/html2video/.browsers/
 tools/html2video/out/
 tools/html2video/sample/.tmp-h2v-*.html
+
+# geo-build 的原始上游数据(3.5MB,按 tools/geo-build/README.md 里的 curl 命令重下)
+# 只把生成产物 tools/geo-build/out/ 入库,原始数据不进历史
+tools/geo-build/geo-data/
