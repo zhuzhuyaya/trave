@@ -2,15 +2,21 @@
 /**
  * 地点选择器。
  *
- * 为什么不调地图选点 / 逆地理编码服务:那需要一个 API Key,
- * 而且移动端在 H5 里拖地图选点远不如原生顺畅。
- * 这里给一个内置的常用地点表(带真实经纬度),输入即筛选,
- * 再留一个"手动填写坐标"的出口 —— 够用,且零外部依赖。
+ * 地理编码服务不接:那需要一个 API Key,还涉及配额与限流。
+ * 三个零依赖的入口并列:
+ * 1. 内置常用地点表(带真实经纬度),输入即筛选;
+ * 2. 地图选点(MapLocationPicker):在图上点一下,坐标与地名都拿到 ——
+ *    地名由足迹地图的板块数据推出,不是反查服务;
+ * 3. 手动填写坐标,留给表与地图都覆盖不到的精确打点。
  *
  * 选中的结果通过 v-model 传回 { name, latitude, longitude }。
+ * 统一口径:PLACES 表当初取自高德,是 GCJ02;出这扇门前一律 gcjToWgs
+ * 转成 WGS84(与地图选点、OSM 瓦片、在线检索同系),存库坐标才不混系。
  */
 import { computed, ref, watch } from 'vue'
 import Sheet from '@/components/ios/Sheet.vue'
+import MapLocationPicker from '@/components/entry/MapLocationPicker.vue'
+import { gcjToWgs } from '@/utils/coord'
 import { PLACES } from '@/utils/places'
 
 const props = withDefaults(
@@ -32,6 +38,8 @@ const keyword = ref('')
 const manualOpen = ref(false)
 const manualLat = ref('')
 const manualLng = ref('')
+/** 二级弹窗:地图选点开着时本弹窗保持挂载,确认后一起收 */
+const mapOpen = ref(false)
 
 const filtered = computed(() => {
   const query = keyword.value.trim()
@@ -40,6 +48,12 @@ const filtered = computed(() => {
     (place) => place.name.includes(query) || place.region.includes(query),
   )
 })
+
+/** 内置表条目转成 WGS84 再交出去(表是 GCJ02, gcjToWgs 回 [经度, 纬度]) */
+function pickPlace(place: (typeof PLACES)[number]): void {
+  const [lng, lat] = gcjToWgs(place.longitude, place.latitude)
+  pick(place.name, lat, lng)
+}
 
 /** 打开时把搜索框清空并带上当前值,避免上次输入残留 */
 watch(
@@ -60,6 +74,12 @@ function close(): void {
 function pick(name: string, latitude: number | null, longitude: number | null): void {
   emit('pick', { name, latitude, longitude })
   close()
+}
+
+/** 地图选点回执:region 文案("福建 · 龙岩 · 新罗区")拆成"地名 + 上级",
+ *  name 取点位的板块名,region 放上级链,与地点表的展示口径一致 */
+function onMapPicked(payload: { name: string; region: string; latitude: number; longitude: number }): void {
+  pick(payload.name || payload.region, payload.latitude, payload.longitude)
 }
 
 function clear(): void {
@@ -106,10 +126,42 @@ function submitManual(): void {
         />
       </div>
 
-      <!-- 手动坐标:折叠起来,只有需要精确打点的人才展开 -->
-      <button class="picker__manual-toggle" type="button" @click="manualOpen = !manualOpen">
-        {{ manualOpen ? '收起手动坐标' : '手动填写经纬度' }}
-      </button>
+      <div class="picker__entries">
+        <button class="picker__entry" type="button" @click="mapOpen = true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 21s-6.5-5.5-6.5-10.5a6.5 6.5 0 1 1 13 0C18.5 15.5 12 21 12 21Z" stroke="currentColor" stroke-width="1.8" />
+            <circle cx="12" cy="10.5" r="2.3" stroke="currentColor" stroke-width="1.8" />
+          </svg>
+          在地图上选点
+        </button>
+        <button class="picker__entry" type="button" @click="manualOpen = !manualOpen">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M4 17l6-6-4-4 8-3m3 14l3-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          {{ manualOpen ? '收起手动坐标' : '手动填写经纬度' }}
+        </button>
+      </div>
+
+      <MapLocationPicker
+        v-model="mapOpen"
+        :latitude="latitude"
+        :longitude="longitude"
+        @pick="onMapPicked"
+      />
+
+      <div v-if="manualOpen" class="picker__manual">
+        <label class="picker__manual-field">
+          <span>纬度</span>
+          <input v-model="manualLat" type="text" inputmode="decimal" placeholder="25.6065" />
+        </label>
+        <label class="picker__manual-field">
+          <span>经度</span>
+          <input v-model="manualLng" type="text" inputmode="decimal" placeholder="100.2676" />
+        </label>
+        <button class="btn btn--secondary btn--block" type="button" @click="submitManual">
+          用这个地点和坐标
+        </button>
+      </div>
 
       <div v-if="manualOpen" class="picker__manual">
         <label class="picker__manual-field">
@@ -127,7 +179,7 @@ function submitManual(): void {
 
       <ul v-if="filtered.length" class="picker__list">
         <li v-for="place in filtered" :key="place.name">
-          <button class="picker__row" type="button" @click="pick(place.name, place.latitude, place.longitude)">
+          <button class="picker__row" type="button" @click="pickPlace(place)">
             <span class="picker__row-main">
               <span class="picker__row-name">{{ place.name }}</span>
               <span class="picker__row-region">{{ place.region }}</span>
@@ -182,10 +234,30 @@ function submitManual(): void {
   display: none;
 }
 
-.picker__manual-toggle {
-  align-self: flex-start;
+.picker__entries {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.picker__entry {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-1);
+  border-radius: 8px;
   font-size: var(--text-footnote);
   color: var(--ios-blue);
+  text-align: left;
+  transition: background var(--dur-fast) var(--ease-standard);
+}
+
+.picker__entry:hover {
+  background: var(--bg-hover);
+}
+
+.picker__entry svg {
+  flex-shrink: 0;
 }
 
 .picker__manual {
