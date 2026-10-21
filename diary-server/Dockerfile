@@ -21,20 +21,21 @@ RUN mvn -B -s settings.xml -DskipTests package
 # ---------- 运行阶段 ----------
 FROM eclipse-temurin:17-jre
 
-# 不用 root 跑。上传目录是应用唯一需要写盘的地方,
+# 不用 root 跑。上传目录与瓦片缓存目录是应用唯二需要写盘的地方,
 # 因此只需要把 /data 交给这个用户,jar 与源码保持只读。
 RUN useradd --system --create-home --uid 10001 diary \
-    && mkdir -p /data/uploads \
+    && mkdir -p /data/uploads /data/tile-cache \
     && chown -R diary:diary /data
 
 WORKDIR /app
 COPY --from=build /build/target/diary-server-*.jar app.jar
 
-# UPLOAD_DIR 显式写成绝对路径:
-# yml 里的默认值是 ./uploads(相对 JVM 工作目录),容器里工作目录一旦变化,
-# 图片会静默落到别处或 404。这里把它钉死在挂载点上。
+# UPLOAD_DIR / TILE_CACHE_DIR 显式写成绝对路径:
+# yml 里的默认值是 ./uploads、./tile-cache(相对 JVM 工作目录),容器里工作目录一旦变化,
+# 图片会静默落到别处或 404,瓦片缓存则白白流失(重启即冷)。这里把它们钉死在挂载点上。
 ENV TZ=Asia/Shanghai \
     UPLOAD_DIR=/data/uploads \
+    TILE_CACHE_DIR=/data/tile-cache \
     JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -Dfile.encoding=UTF-8"
 
 USER diary
