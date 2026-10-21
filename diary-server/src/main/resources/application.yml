@@ -10,6 +10,18 @@ spring:
   application:
     name: travel-diary
 
+  # ---------------------------------------------------------------------------
+  # Spring AI 的自动配置整体静默关闭:
+  #   spring.ai.model.chat / embedding 各自的取值为 starter 名(deepseek / ollama),
+  #   且 matchIfMissing=true —— 即"什么都不写"时两个 starter 都会激活,
+  #   而 DeepSeek 在 key 缺失时是启动即炸。写 none 让条件必然不满足。
+  #   模型 Bean 改由 AiConfig 按 panel.ai.enabled 手动装配(见该类注释)。
+  # ---------------------------------------------------------------------------
+  ai:
+    model:
+      chat: none
+      embedding: none
+
   # 密码一律走环境变量,代码库中零硬编码。
   # 启动方式:DB_PASSWORD=你的密码 mvn spring-boot:run
   datasource:
@@ -82,6 +94,19 @@ panel:
     # 目录上限 512MB ≈ 上万张瓦片,超出后按最久未用淘汰
     max-mb: 512
     timeout-seconds: 10
+  ai:
+    # AI 总开关(见 AiProperties):默认关。
+    # DeepSeek 没 key 或 Ollama 没跑时,语义搜索/自动标签/年度回顾/RAG 问答
+    # 整体降级为"未启用",日记主功能完全不受影响。
+    enabled: ${AI_ENABLED:false}
+    # Ollama 承担嵌入(bge-m3):ollama pull bge-m3 即可,不需要 Python 环境
+    ollama-base: ${OLLAMA_BASE:http://localhost:11434}
+    embedding-model: bge-m3
+    # 超过这条余弦线的召回才进结果
+    min-score: 0.45
+    search-limit: 20
+    chat-context-size: 8
+    max-tokens: 2000
   seed:
     # 首次启动时若 users 表为空,写入演示数据。生产环境设 SEED_ENABLED=false
     enabled: ${SEED_ENABLED:true}
