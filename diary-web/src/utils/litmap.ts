@@ -9,29 +9,36 @@
  * 不需要动表结构 —— 点亮是几何推导,不是状态存储:
  * 改地点、删日记之后"熄灭"是自动的,不存在失同步。
  *
- * 算法量级:射线法每环 O(顶点数)。全包 34 省 + 240 国约 5 万顶点,
+ * 板块颗粒度:中国的点亮单元是**区县**(直筒子市保留市面,台港澳整域一块),
+ * 去过龙岩的新罗区就只亮新罗区,不会点亮整个龙岩市;海外国家维持国家级。
+ *
+ * 算法量级:射线法每环 O(顶点数)。全包约 2800 市/县 + 240 国约 17 万顶点,
  * 几百个足迹点全测一遍是几十毫秒,而且只在数据到位后算一次。
  *
- * 坐标系说明(为什么结果有几百米毛刺):中国省界来自 DataV(高德 GCJ02),
+ * 坐标系说明(为什么结果有几百米毛刺):中国县界来自 DataV(高德 GCJ02),
  * 海外国界来自 Natural Earth(WGS84),Leaflet 的 OSM 瓦片是 WGS84。
- * GCJ 与 WGS 的偏差在数百米量级,对"省级/国家级"的点亮示意无感,
+ * GCJ 与 WGS 的偏差在数百米量级,对"区县/国家级"的点亮示意无感,
  * 因此省去一次纠偏依赖;详见 tools/geo-build/README.md。
  */
 import type { Geometry } from 'geojson'
 
-/** 一个板块:省级或国家级。 */
+/** 一个板块:区县级或国家级。 */
 export interface LitRegion {
-  /** 稳定 id:省用 adcode,国家用 ISO-3 */
+  /** 稳定 id:市/县用 adcode,国家用 ISO-3 */
   id: string
-  /** 展示名(省级直接中文,国名已映射中文,未收录的保留英文) */
+  /** 展示名(区县直接中文,国名已映射中文,未收录的保留英文) */
   name: string
+  /** 父级名,给地图选点拼 region 文案:县 → 市,直筒子市 → 省;台港澳没有 */
+  parent?: string
+  /** 祖级名(仅区县有):区县 → 省 */
+  province?: string
   /** 地理质心;生成时没算出来的国家为 null */
   centroid: [number, number] | null
   geometry: Geometry
 }
 
 interface LitMapBundle {
-  provinces: LitRegion[]
+  cities: LitRegion[]
   countries: LitRegion[]
 }
 
@@ -84,15 +91,112 @@ export function inGeometry(x: number, y: number, geometry: Geometry): boolean {
   return false
 }
 
-/** 足迹点所属板块:省优先(更细),未命中再看国家。 */
+/** 足迹点所属板块:区县优先(更细),未命中再看国家。 */
 export function regionOf(x: number, y: number, bundle: LitMapBundle): LitRegion | null {
-  for (const province of bundle.provinces) {
-    if (inGeometry(x, y, province.geometry)) return province
+  for (const city of bundle.cities) {
+    if (inGeometry(x, y, city.geometry)) return city
   }
   for (const country of bundle.countries) {
     if (inGeometry(x, y, country.geometry)) return country
   }
   return null
+}
+
+/**
+ * 地图选点的地名文案:点哪就抄哪一块的名字,加上它自带的父子链。
+ *
+ * 输出与内置地点表的 region 风格对齐:「新罗区」得到 "福建 · 龙岩 · 新罗区",
+ * 「武侯区」得到 "四川 · 成都 · 武侯区",「东莞市」(直筒子)得到 "广东 · 东莞市",
+ * 港澳台整域块只有自身名。海外国家只抄国名。
+ * 找不到所属板块(点了海面)回 null,调用方可以保留手动输入。
+ */
+export function placeAt(
+  x: number,
+  y: number,
+  bundle: LitMapBundle,
+): { name: string; region: string } | null {
+  const city = bundle.cities.find((tile) => inGeometry(x, y, tile.geometry))
+  if (city) {
+    const parts = [city.province, city.parent, city.name].filter(
+      (part, index, all) => part != null && all.indexOf(part) === index,
+    )
+    return { name: city.name, region: parts.join(' · ') }
+  }
+  const country = bundle.countries.find((tile) => inGeometry(x, y, tile.geometry))
+  return country ? { name: country.name, region: country.name } : null
+}
+
+/**
+ * 板块名搜索:给地图选点的搜索定位用。
+ *
+ * 2851 块板块一次建好索引(名字 + 父子链拼出的全文),过滤是纯字符串匹配,
+ * 命中后用 centroid 飞行、geometryBounds 取景。县名重名很多(全国几十个"城关镇"),
+ * 所以结果里带上父子链当副标题,用户看得出来自己选的是哪个。
+ */
+/**
+ * 板块名搜索结果。
+ */
+export interface RegionHit {
+  /** 板块自身名,如「新罗区」 */
+  name: string
+  /** 父子链文案,如「福建 · 龙岩」,当搜索结果副标题 */
+  region: string
+  /** 质心 [lat, lng];没算出的板块不进结果 */
+  centroid: [number, number]
+  /** 取景用 bbox */
+  bounds: [[number, number], [number, number]]
+}
+
+/** 会话级索引:第一次搜索时建,板块数据不变就不用重建 */
+let regionIndex: { hit: RegionHit; haystack: string }[] | null = null
+
+function buildRegionIndex(bundle: LitMapBundle) {
+  const index: { hit: RegionHit; haystack: string }[] = []
+  for (const tile of bundle.cities) {
+    const bounds = geometryBounds(tile.geometry)
+    if (!tile.centroid || !bounds) continue
+    const parts = [tile.province, tile.parent, tile.name].filter(
+      (part, index, all) => part != null && all.indexOf(part) === index,
+    )
+    index.push({
+      hit: {
+        name: tile.name,
+        region: parts.join(' · '),
+        centroid: [tile.centroid[1], tile.centroid[0]],
+        bounds,
+      },
+      haystack: parts.join(''),
+    })
+  }
+  for (const tile of bundle.countries) {
+    const bounds = geometryBounds(tile.geometry)
+    if (!tile.centroid || !bounds) continue
+    index.push({
+      hit: {
+        name: tile.name,
+        region: tile.name,
+        centroid: [tile.centroid[1], tile.centroid[0]],
+        bounds,
+      },
+      haystack: tile.name,
+    })
+  }
+  return index
+}
+
+/** 按关键词搜板块,最多回 limit 条。空关键词回空数组。 */
+export function searchRegions(
+  keyword: string,
+  bundle: LitMapBundle,
+  limit = 8,
+): RegionHit[] {
+  const query = keyword.trim()
+  if (!query) return []
+  regionIndex ??= buildRegionIndex(bundle)
+  return regionIndex
+    .filter((entry) => entry.haystack.includes(query))
+    .slice(0, limit)
+    .map((entry) => entry.hit)
 }
 
 /**
