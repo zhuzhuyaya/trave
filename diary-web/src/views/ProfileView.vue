@@ -146,6 +146,11 @@ async function doLogout(): Promise<void> {
               @click="router.push({ name: 'timeline' })"
             />
             <ListRow
+              clickable
+              title="我的收藏"
+              @click="router.push({ name: 'bookmarks' })"
+            />
+            <ListRow
               last
               clickable
               title="足迹地图"

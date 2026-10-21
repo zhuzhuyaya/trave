@@ -82,6 +82,12 @@ export const routes: RouteRecordRaw[] = [
     component: () => import('@/views/SearchView.vue'),
     meta: { requiresAuth: true },
   },
+  {
+    path: '/bookmarks',
+    name: 'bookmarks',
+    component: () => import('@/views/BookmarksView.vue'),
+    meta: { requiresAuth: true },
+  },
 
   /* ---- 认证 ---- */
   {

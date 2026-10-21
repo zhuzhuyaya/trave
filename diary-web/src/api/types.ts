@@ -250,3 +250,22 @@ export interface ToggleVO {
   active: boolean
   count: number
 }
+
+/* ---------------------------------------------------------------------------
+ *  收藏
+ * ------------------------------------------------------------------------- */
+
+/** 标签筛选项:名字 + 当前收藏集里挂这个标签的日记数。 */
+export interface BookmarkTagVO {
+  name: string
+  count: number
+}
+
+/** 收藏页一屏:分页卡片 + 可选标签(筛选 chips)。 */
+export interface BookmarkPageVO {
+  list: EntrySummaryVO[]
+  total: number
+  tags: BookmarkTagVO[]
+  /** 标签筛选是否生效中;前端拿它决定"清除筛选"的显示 */
+  filtered: boolean
+}
