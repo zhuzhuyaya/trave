@@ -24,6 +24,7 @@ spring:
 
   # 密码一律走环境变量,代码库中零硬编码。
   # 启动方式:DB_PASSWORD=你的密码 mvn spring-boot:run
+  # 默认值是占位符,连不上库就是没设这个变量 —— 不会"改一下默认值"就通。
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:travel_diary}?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&rewriteBatchedStatements=true
