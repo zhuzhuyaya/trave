@@ -15,12 +15,17 @@ export default defineConfig({
     // 这样生产环境换成同域部署时不用改任何代码。
     // /uploads 单独代理是因为图片不走 axios,由 <img src> 直接请求,
     // 不代理的话开发环境下图片会 404(请求打到了 Vite 而不是后端)。
+    // /tiles 是地图瓦片代理(后端磁盘缓存 + 回源 OSM 镜像),同样由 <img> 请求。
     proxy: {
       '/api': {
         target: 'http://localhost:8082',
         changeOrigin: true,
       },
       '/uploads': {
+        target: 'http://localhost:8082',
+        changeOrigin: true,
+      },
+      '/tiles': {
         target: 'http://localhost:8082',
         changeOrigin: true,
       },
