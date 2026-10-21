@@ -2,13 +2,14 @@
 /**
  * 搜索页。
  *
- * 结果按时间倒序排成一条列表 —— 搜索是一次"找到就走"的动作,
- * 不需要再花哨的版式。
+ * 两条搜索路径:
+ *   - 关键词:SQL LIKE 字面匹配,适合记得原话/地名;
+ *   - 语义:把查询嵌入成向量再算余弦,适合只记得"那件事大概是什么感觉"。
  *
- * 输入防抖 300ms:每敲一个字打一次接口,在网络慢的时候请求会互相覆盖,
- * 结果顺序都可能乱掉。
+ * 输入防抖 320ms;每次请求带序号,过期响应直接丢弃 ——
+ * 语义搜索要等 Ollama,慢请求比关键词更容易出现"后发先至"。
  */
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import NavBar from '@/components/ios/NavBar.vue'
 import EntryCard from '@/components/entry/EntryCard.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
@@ -19,45 +20,83 @@ import { useUiStore } from '@/stores/ui'
 import type { EntrySummaryVO } from '@/api/types'
 import { debounce } from '@/utils/misc'
 
+type SearchMode = 'keyword' | 'semantic'
+
 const ui = useUiStore()
 
 const inputRef = ref<HTMLInputElement | null>(null)
 const keyword = ref('')
+const mode = ref<SearchMode>('keyword')
 const results = ref<EntrySummaryVO[]>([])
+/** entryId → 余弦相似度;只在意语义模式下有值 */
+const scores = ref<Record<number, number>>({})
+/** 后端 AI 是否可用;enabled=false 时提示去配置,而不是说"没搜到" */
+const semanticEnabled = ref(true)
 const loading = ref(false)
 const searched = ref(false)
 
 /** 关键词最短 2 个字:一个字的搜索会命中几乎所有记录,没有意义 */
 const MIN_LENGTH = 2
 
+const placeholder = computed(() =>
+  mode.value === 'semantic'
+    ? '描述你记得的内容,比如「秋天在山里看枫叶」'
+    : '搜索标题、正文或地点',
+)
+
+/** 请求序号:防抖之后仍可能有两个请求在途,只认最后一次的结果 */
+let requestSeq = 0
+
 async function run(): Promise<void> {
   const query = keyword.value.trim()
   if (query.length < MIN_LENGTH) {
+    requestSeq++ // 让在途请求的结果作废
+    loading.value = false
     results.value = []
+    scores.value = {}
     searched.value = false
     return
   }
 
+  const seq = ++requestSeq
   loading.value = true
   try {
-    const result = await entryApi.list({ keyword: query, page: 1, size: 30 })
-    results.value = result.list
+    if (mode.value === 'semantic') {
+      const result = await entryApi.semanticSearch(query)
+      if (seq !== requestSeq) return
+      semanticEnabled.value = result.enabled
+      results.value = result.hits.map((hit) => hit.entry)
+      scores.value = Object.fromEntries(result.hits.map((hit) => [hit.entry.id, hit.score]))
+    } else {
+      const result = await entryApi.list({ keyword: query, page: 1, size: 30 })
+      if (seq !== requestSeq) return
+      results.value = result.list
+      scores.value = {}
+    }
     searched.value = true
   } catch (error) {
+    if (seq !== requestSeq) return
     ui.error(toMessage(error))
     results.value = []
+    scores.value = {}
+    searched.value = false
   } finally {
-    loading.value = false
+    if (seq === requestSeq) loading.value = false
   }
 }
 
 const debouncedRun = debounce(() => void run(), 320)
 
-watch(keyword, () => debouncedRun())
+watch([keyword, mode], () => {
+  requestSeq++ // 输入或模式一变,在途请求立刻作废
+  debouncedRun()
+})
 
 function clear(): void {
+  requestSeq++ // 清空时在途请求也应作废,否则慢响应会把结果又填回来
   keyword.value = ''
   results.value = []
+  scores.value = {}
   searched.value = false
   inputRef.value?.focus()
 }
@@ -92,7 +131,7 @@ onMounted(() => {
             class="search__input"
             type="search"
             autocomplete="off"
-            placeholder="搜索标题、正文或地点"
+            :placeholder="placeholder"
             @keyup.enter="run"
           />
           <button v-if="keyword" class="search__clear" type="button" aria-label="清空" @click="clear">
@@ -100,6 +139,38 @@ onMounted(() => {
               <circle cx="12" cy="12" r="9" fill="currentColor" />
               <path d="M9 9l6 6M15 9l-6 6" stroke="var(--bg-elevated)" stroke-width="2" stroke-linecap="round" />
             </svg>
+          </button>
+        </div>
+
+        <!-- 关键词是"记得原话",语义是"记得意思"——两条路各有用处 -->
+        <div class="search__modes" role="tablist" aria-label="搜索方式">
+          <button
+            type="button"
+            role="tab"
+            class="search__mode"
+            :class="{ 'search__mode--active': mode === 'keyword' }"
+            :aria-selected="mode === 'keyword'"
+            @click="mode = 'keyword'"
+          >
+            关键词
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="search__mode"
+            :class="{ 'search__mode--active': mode === 'semantic' }"
+            :aria-selected="mode === 'semantic'"
+            @click="mode = 'semantic'"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M12 3l1.9 5.4L19.5 10l-5.6 1.6L12 17l-1.9-5.4L4.5 10l5.6-1.6z"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linejoin="round"
+              />
+            </svg>
+            语义
           </button>
         </div>
       </div>
@@ -117,9 +188,33 @@ onMounted(() => {
       </template>
 
       <template v-else-if="results.length">
-        <p class="search__count">找到 {{ results.length }} 篇</p>
-        <EntryCard v-for="entry in results" :key="entry.id" :entry="entry" />
+        <p class="search__count">
+          <template v-if="mode === 'semantic'">
+            找到 {{ results.length }} 篇语义相近的日记 · 按相关度排序
+          </template>
+          <template v-else>找到 {{ results.length }} 篇</template>
+        </p>
+        <EntryCard
+          v-for="entry in results"
+          :key="entry.id"
+          :entry="entry"
+          :score="mode === 'semantic' ? scores[entry.id] : undefined"
+        />
       </template>
+
+      <EmptyState
+        v-else-if="searched && mode === 'semantic' && !semanticEnabled"
+        icon="M12 3l1.9 5.4L19.5 10l-5.6 1.6L12 17l-1.9-5.4L4.5 10l5.6-1.6z"
+        title="语义搜索未启用"
+        description="后端 AI 未开启。启用 AI_ENABLED 并启动 Ollama 后,就能按意思搜索。"
+      />
+
+      <EmptyState
+        v-else-if="searched && mode === 'semantic'"
+        icon="M12 3l1.9 5.4L19.5 10l-5.6 1.6L12 17l-1.9-5.4L4.5 10l5.6-1.6z"
+        title="没有语义相近的日记"
+        description="换个说法试试:描述当时在做什么、看到了什么,比只写名词更容易命中"
+      />
 
       <EmptyState
         v-else-if="searched"
@@ -131,8 +226,12 @@ onMounted(() => {
       <EmptyState
         v-else
         icon="M11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14ZM16 16l4.5 4.5"
-        title="搜索你的日记"
-        :description="`输入至少 ${MIN_LENGTH} 个字开始搜索`"
+        :title="mode === 'semantic' ? '按意思搜索日记' : '搜索你的日记'"
+        :description="
+          mode === 'semantic'
+            ? `输入至少 ${MIN_LENGTH} 个字,描述你想找的那段经历`
+            : `输入至少 ${MIN_LENGTH} 个字开始搜索`
+        "
       />
     </div>
   </div>
@@ -177,6 +276,41 @@ onMounted(() => {
 /* 聚焦时给一圈蓝边:桌面端键盘操作多,焦点必须看得见 */
 .search__field:focus-within {
   box-shadow: 0 0 0 2px var(--ios-blue);
+}
+
+/* iOS 分段控件:关键词 / 语义 */
+.search__modes {
+  display: flex;
+  gap: 2px;
+  margin-top: var(--space-2);
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--bg-fill);
+}
+
+.search__mode {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 30px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  font-size: var(--text-footnote);
+  color: var(--label-2);
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard);
+}
+
+.search__mode--active {
+  background: var(--bg-elevated);
+  color: var(--label);
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 12%);
 }
 
 .search__icon {

@@ -6,11 +6,14 @@ import type {
   EntryQuery,
   EntrySummaryVO,
   PageResult,
+  SemanticSearchVO,
   ToggleVO,
 } from './types'
 
 export const entryApi = {
   list: (query: EntryQuery = {}) => get<PageResult<EntrySummaryVO>>('/entries', query),
+  /** 语义搜索:按意思匹配,结果按相关度降序;AI 未启用时 enabled=false。 */
+  semanticSearch: (q: string) => get<SemanticSearchVO>('/entries/semantic-search', { q }),
   detail: (id: number) => get<EntryDetailVO>(`/entries/${id}`),
   create: (payload: EntryPayload) => post<EntryDetailVO>('/entries', payload),
   update: (id: number, payload: EntryPayload) => put<EntryDetailVO>(`/entries/${id}`, payload),

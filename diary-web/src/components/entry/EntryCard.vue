@@ -13,9 +13,14 @@ import { useRouter } from 'vue-router'
 import type { EntrySummaryVO } from '@/api/types'
 import { gradientFor } from '@/utils/misc'
 
-const props = defineProps<{ entry: EntrySummaryVO }>()
+const props = defineProps<{ entry: EntrySummaryVO; score?: number | null }>()
 
 const router = useRouter()
+
+/** 语义搜索结果才有:cosine 0~1 转成给人看的百分比 */
+const scorePercent = computed(() =>
+  props.score == null ? null : Math.round(props.score * 100),
+)
 
 const dateParts = computed(() => {
   const [year, month, day] = props.entry.entryDate.split('-')
@@ -70,6 +75,10 @@ function open(): void {
         <p v-if="entry.excerpt" class="card__excerpt ellipsis-2">{{ entry.excerpt }}</p>
 
         <div class="card__meta">
+          <span v-if="scorePercent !== null" class="card__meta-item card__meta-item--score">
+            相关度 {{ scorePercent }}%
+          </span>
+
           <span v-if="entry.locationName" class="card__meta-item">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path
@@ -244,6 +253,11 @@ function open(): void {
 
 .card__meta-item--mood {
   color: var(--ios-orange);
+  font-weight: 500;
+}
+
+.card__meta-item--score {
+  color: var(--ios-blue);
   font-weight: 500;
 }
 

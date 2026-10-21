@@ -10,6 +10,7 @@ import com.travel.diary.service.EntryService;
 import com.travel.diary.vo.BookmarkPageVO;
 import com.travel.diary.vo.EntryDetailVO;
 import com.travel.diary.vo.EntrySummaryVO;
+import com.travel.diary.vo.SemanticSearchVO;
 import com.travel.diary.vo.ToggleVO;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -40,6 +42,19 @@ public class EntryController {
     @RequireLogin
     public R<PageResult<EntrySummaryVO>> list(EntryQuery query) {
         return R.ok(entryService.list(query, UserContext.require()));
+    }
+
+    /**
+     * 语义搜索。
+     *
+     * <p>和列表接口的 keyword 是两条路:keyword 走 SQL LIKE 的字面匹配,
+     * 这里把查询也嵌入成向量再算余弦,能命中"意思相近但用词不同"的日记。
+     * AI 未启用时返回空结果 + enabled=false,前端据此提示配置,而不是报错。
+     */
+    @GetMapping("/semantic-search")
+    @RequireLogin
+    public R<SemanticSearchVO> semanticSearch(@RequestParam String q) {
+        return R.ok(entryService.semanticSearch(q, UserContext.require()));
     }
 
     @GetMapping("/{id}")
@@ -96,7 +111,7 @@ public class EntryController {
      */
     @GetMapping("/bookmarks")
     @RequireLogin
-    public R<BookmarkPageVO> bookmarks(@org.springframework.web.bind.annotation.RequestParam(required = false) String tag) {
+    public R<BookmarkPageVO> bookmarks(@RequestParam(required = false) String tag) {
         return R.ok(entryService.listBookmarks(tag, UserContext.require()));
     }
 }

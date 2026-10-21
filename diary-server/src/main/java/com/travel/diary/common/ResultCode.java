@@ -27,7 +27,10 @@ public enum ResultCode {
     CONFLICT(40900, "操作冲突,请刷新后重试"),
 
     /* ---- 500 ---- */
-    INTERNAL_ERROR(50000, "服务器开小差了,请稍后重试");
+    INTERNAL_ERROR(50000, "服务器开小差了,请稍后重试"),
+
+    /* ---- 503:依赖的外部服务不可用 ---- */
+    AI_UNAVAILABLE(50300, "语义搜索暂时不可用,请确认 Ollama 已启动");
 
     private final int code;
     private final String message;

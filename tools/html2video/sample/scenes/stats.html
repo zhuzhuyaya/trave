@@ -1,0 +1,60 @@
+<template>
+  <div class="scene" id="scene-stats">
+    <div style="text-align:center">
+      <div
+        style="font-size:28px;letter-spacing:.3em;color:#8b949e;margin-bottom:44px"
+      >
+        THIS YEAR
+      </div>
+      <div style="display:flex;gap:64px">
+        <div
+          class="stat-tile"
+          style="background:rgba(88,166,255,.10);border:1px solid rgba(88,166,255,.28);border-radius:28px;padding:56px 72px;min-width:300px;opacity:0"
+        >
+          <div class="pulse" style="font-size:76px;font-weight:800;color:#58a6ff" data-count="128">0</div>
+          <div style="font-size:26px;color:#8b949e;margin-top:14px">篇日记</div>
+        </div>
+        <div
+          class="stat-tile"
+          style="background:rgba(247,120,186,.10);border:1px solid rgba(247,120,186,.28);border-radius:28px;padding:56px 72px;min-width:300px;opacity:0"
+        >
+          <div class="pulse" style="font-size:76px;font-weight:800;color:#f778ba" data-count="36">0</div>
+          <div style="font-size:26px;color:#8b949e;margin-top:14px">座城市</div>
+        </div>
+        <div
+          class="stat-tile"
+          style="background:rgba(63,185,80,.10);border:1px solid rgba(63,185,80,.28);border-radius:28px;padding:56px 72px;min-width:300px;opacity:0"
+        >
+          <div class="pulse" style="font-size:76px;font-weight:800;color:#3fb950" data-count="5241">0</div>
+          <div style="font-size:26px;color:#8b949e;margin-top:14px">公里</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+  (function () {
+    var D = window.__demo;
+    var scene = document.getElementById('scene-stats');
+    var tiles = scene.querySelectorAll('.stat-tile');
+    var counts = scene.querySelectorAll('[data-count]');
+    var steps = [{ at: 2.2, dur: 0.5, run: function (p) { scene.style.opacity = p; } }];
+
+    tiles.forEach(function (tile, i) {
+      var at = 2.5 + i * 0.2;
+      steps.push({ at: at, dur: 0.8, run: function (p) {
+        tile.style.opacity = p;
+        tile.style.transform = 'translateY(' + (34 * (1 - p)).toFixed(2) + 'px)';
+      } });
+      steps.push({ at: 2.6 + i * 0.2, dur: 1.4, run: function (p) {
+        var target = parseInt(counts[i].getAttribute('data-count'), 10);
+        counts[i].textContent = Math.round(target * p).toString();
+      } });
+    });
+
+    steps.push({ at: 4.2, dur: 0.2, run: function (p) { scene.style.opacity = 1 - p; } });
+
+    D.makeTimeline('stats', steps, { duration: 4.4 });
+  })();
+</script>

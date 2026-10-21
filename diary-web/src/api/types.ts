@@ -92,6 +92,18 @@ export interface EntrySummaryVO {
   canEdit: boolean
 }
 
+/** 语义搜索命中:日记卡片 + 余弦相似度(0~1)。 */
+export interface SemanticHitVO {
+  entry: EntrySummaryVO
+  score: number
+}
+
+/** 语义搜索结果;enabled=false 表示后端 AI 未启用,与"没搜到"区分。 */
+export interface SemanticSearchVO {
+  enabled: boolean
+  hits: SemanticHitVO[]
+}
+
 export interface EntryDetailVO {
   id: number
   title: string

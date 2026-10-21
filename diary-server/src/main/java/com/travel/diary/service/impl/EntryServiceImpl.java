@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.travel.diary.common.BizException;
 import com.travel.diary.common.Markdown;
 import com.travel.diary.common.PageResult;
+import com.travel.diary.common.ResultCode;
 import com.travel.diary.dto.EntryQuery;
 import com.travel.diary.dto.EntryRequest;
 import com.travel.diary.dto.EntryTagRow;
@@ -20,6 +21,7 @@ import com.travel.diary.mapper.EntryPhotoMapper;
 import com.travel.diary.mapper.EntryTagMapper;
 import com.travel.diary.mapper.TagMapper;
 import com.travel.diary.security.LoginUser;
+import com.travel.diary.service.EmbeddingService;
 import com.travel.diary.service.EntryService;
 import com.travel.diary.service.PhotoService;
 import com.travel.diary.service.TripService;
@@ -28,11 +30,16 @@ import com.travel.diary.vo.BookmarkPageVO;
 import com.travel.diary.vo.BookmarkTagVO;
 import com.travel.diary.vo.EntryDetailVO;
 import com.travel.diary.vo.EntrySummaryVO;
+import com.travel.diary.vo.SemanticHitVO;
+import com.travel.diary.vo.SemanticSearchVO;
 import com.travel.diary.vo.ToggleVO;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -45,6 +52,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class EntryServiceImpl implements EntryService {
 
     /** 关键词最短长度。一两个字符的搜索会命中几乎所有记录,纯属浪费查询。 */
@@ -57,6 +65,7 @@ public class EntryServiceImpl implements EntryService {
     private final BookmarkMapper bookmarkMapper;
     private final TripService tripService;
     private final PhotoService photoService;
+    private final EmbeddingService embeddingService;
     private final ViewAssembler assembler;
 
     @Override
@@ -124,6 +133,46 @@ public class EntryServiceImpl implements EntryService {
     }
 
     @Override
+    public SemanticSearchVO semanticSearch(String query, LoginUser viewer) {
+        SemanticSearchVO vo = new SemanticSearchVO();
+        boolean enabled = embeddingService.available();
+        vo.setEnabled(enabled);
+
+        String trimmed = query == null ? "" : query.trim();
+        if (!enabled || trimmed.length() < MIN_KEYWORD_LENGTH) {
+            return vo;
+        }
+
+        List<EmbeddingService.Scored> scored;
+        try {
+            scored = embeddingService.search(viewer.id(), trimmed);
+        } catch (Exception e) {
+            // 模型 Bean 在、但 Ollama 没起/超时:给一句能看懂的提示,而不是 500
+            log.warn("语义搜索失败: {}", e.toString());
+            throw new BizException(ResultCode.AI_UNAVAILABLE);
+        }
+        if (scored.isEmpty()) {
+            return vo;
+        }
+
+        // 向量表只存了 entry_id;按检索顺序取实体再装配卡片。
+        // selectBatchIds 不保序,所以用 id → 实体重排,最终顺序仍是相关度降序。
+        List<Long> ids = scored.stream().map(EmbeddingService.Scored::entryId).toList();
+        Map<Long, Entry> entryById = entryMapper.selectBatchIds(ids).stream()
+                .collect(Collectors.toMap(Entry::getId, e -> e));
+        List<Entry> ordered = ids.stream().map(entryById::get).filter(Objects::nonNull).toList();
+        Map<Long, EntrySummaryVO> cards = assembler.toSummaries(ordered, viewer).stream()
+                .collect(Collectors.toMap(EntrySummaryVO::getId, v -> v));
+
+        // 取实体和检索之间可能有日记被删:批量查不回来的直接跳过,不留空洞
+        vo.setHits(scored.stream()
+                .filter(hit -> cards.containsKey(hit.entryId()))
+                .map(hit -> new SemanticHitVO(cards.get(hit.entryId()), hit.score()))
+                .toList());
+        return vo;
+    }
+
+    @Override
     @Transactional
     public EntryDetailVO create(EntryRequest request, LoginUser author) {
         Entry entry = new Entry();
@@ -141,6 +190,7 @@ public class EntryServiceImpl implements EntryService {
 
         replaceTags(entry.getId(), request.getTags());
         syncPhotos(entry.getId(), author.id(), request.getPhotoUrls());
+        syncEmbeddingAfterCommit(entry.getId());
 
         return assembler.toDetail(entryMapper.selectById(entry.getId()), author, false);
     }
@@ -174,6 +224,7 @@ public class EntryServiceImpl implements EntryService {
         // use_count 归零再重算,并发下数字会跳来跳去。
         replaceTags(id, request.getTags());
         syncPhotos(id, editor.id(), request.getPhotoUrls());
+        syncEmbeddingAfterCommit(id);
 
         boolean bookmarked = bookmarkMapper.exists(new LambdaQueryWrapper<Bookmark>()
                 .eq(Bookmark::getEntryId, id)
@@ -200,6 +251,7 @@ public class EntryServiceImpl implements EntryService {
         bookmarkMapper.delete(new LambdaQueryWrapper<Bookmark>().eq(Bookmark::getEntryId, id));
 
         entryMapper.deleteById(entry.getId());
+        removeEmbeddingAfterCommit(id);
     }
 
     @Override
@@ -349,6 +401,32 @@ public class EntryServiceImpl implements EntryService {
     /* ---------------------------------------------------------------------
      *  内部工具
      * ------------------------------------------------------------------- */
+
+    /**
+     * 向量同步放到事务提交之后:嵌入要打一次 Ollama 的 HTTP 请求,
+     * 在事务里做会把数据库连接和行锁一直攥到模型返回。
+     * 提交后再做,失败也只影响向量本身,正文早已落库。
+     */
+    private void syncEmbeddingAfterCommit(Long entryId) {
+        afterCommit(() -> embeddingService.sync(entryId));
+    }
+
+    private void removeEmbeddingAfterCommit(Long entryId) {
+        afterCommit(() -> embeddingService.remove(entryId));
+    }
+
+    private void afterCommit(Runnable action) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            action.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                action.run();
+            }
+        });
+    }
 
     /** 归属校验:行程必须是自己的,否则不能把日记挂进去。 */
     private Long validatedTripId(Long tripId, LoginUser owner) {

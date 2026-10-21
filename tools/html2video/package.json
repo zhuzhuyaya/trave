@@ -1,0 +1,17 @@
+{
+  "name": "@trave/html2video",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Render an animated HTML page to MP4 via headless Chromium + ffmpeg",
+  "bin": {
+    "html2video": "./html2video.mjs"
+  },
+  "scripts": {
+    "render": "node html2video.mjs",
+    "demo": "node html2video.mjs sample/demo.html --out out/demo.mp4"
+  },
+  "dependencies": {
+    "playwright": "^1.64.1"
+  }
+}

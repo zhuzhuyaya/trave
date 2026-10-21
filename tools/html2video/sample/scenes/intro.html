@@ -1,0 +1,53 @@
+<template>
+  <div class="scene" id="scene-intro">
+    <div class="shimmer" style="pointer-events:none"></div>
+    <div style="text-align:center;position:relative">
+      <div
+        class="blink"
+        style="font-size:30px;letter-spacing:.42em;color:#8b949e;margin-bottom:34px"
+      >
+        TRAVEL DIARY
+      </div>
+      <h1
+        id="intro-title"
+        style="font-family:var(--serif);font-size:136px;line-height:1.08;opacity:0"
+      >
+        旅行日记
+      </h1>
+      <p
+        id="intro-sub"
+        style="font-size:36px;color:#8b949e;margin-top:36px;opacity:0"
+      >
+        把走过的路，一帧一帧存下来
+      </p>
+    </div>
+  </div>
+</template>
+
+<script>
+  (function () {
+    var D = window.__demo;
+    var scene = document.getElementById('scene-intro');
+    var title = document.getElementById('intro-title');
+    var sub = document.getElementById('intro-sub');
+
+    D.makeTimeline(
+      'intro',
+      [
+        { at: 0.0, dur: 0.5, run: function (p) { scene.style.opacity = p; } },
+        { at: 0.15, dur: 0.9, run: function (p) {
+            title.style.opacity = p;
+            title.style.transform =
+              'translateY(' + (40 * (1 - p)).toFixed(2) + 'px) scale(' +
+              (0.94 + 0.06 * p).toFixed(4) + ')';
+          } },
+        { at: 0.7, dur: 0.8, run: function (p) {
+            sub.style.opacity = p;
+            sub.style.transform = 'translateY(' + (24 * (1 - p)).toFixed(2) + 'px)';
+          } },
+        { at: 2.0, dur: 0.2, run: function (p) { scene.style.opacity = 1 - p; } },
+      ],
+      { duration: 2.2 },
+    );
+  })();
+</script>

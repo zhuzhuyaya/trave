@@ -1,0 +1,55 @@
+<template>
+  <div class="scene" id="scene-outro">
+    <div style="text-align:center">
+      <div
+        class="pulse"
+        style="font-size:120px;line-height:1;margin-bottom:34px;opacity:0"
+        id="outro-mark"
+      >
+        ✈
+      </div>
+      <h2
+        id="outro-title"
+        style="font-family:var(--serif);font-size:82px;opacity:0"
+      >
+        下一站,继续
+      </h2>
+      <p
+        id="outro-sub"
+        style="font-size:32px;color:#8b949e;margin-top:30px;opacity:0"
+      >
+        html-to-video pipeline · 确定性帧步进
+      </p>
+    </div>
+  </div>
+</template>
+
+<script>
+  (function () {
+    var D = window.__demo;
+    var scene = document.getElementById('scene-outro');
+    var mark = document.getElementById('outro-mark');
+    var title = document.getElementById('outro-title');
+    var sub = document.getElementById('outro-sub');
+
+    D.makeTimeline(
+      'outro',
+      [
+        { at: 4.4, dur: 0.5, run: function (p) { scene.style.opacity = p; } },
+        { at: 4.5, dur: 0.9, run: function (p) {
+            mark.style.opacity = p;
+            mark.style.transform = 'scale(' + (0.6 + 0.4 * p).toFixed(4) + ')';
+          } },
+        { at: 4.7, dur: 0.9, run: function (p) {
+            title.style.opacity = p;
+            title.style.transform = 'translateY(' + (30 * (1 - p)).toFixed(2) + 'px)';
+          } },
+        { at: 5.0, dur: 0.8, run: function (p) {
+            sub.style.opacity = p;
+            sub.style.transform = 'translateY(' + (20 * (1 - p)).toFixed(2) + 'px)';
+          } },
+      ],
+      { duration: 6.4 },
+    );
+  })();
+</script>

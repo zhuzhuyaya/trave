@@ -12,3 +12,9 @@ diary-web/dist/
 
 # Playwright 调试产物
 .playwright-mcp/
+
+# html2video 渲染工具的本地依赖、浏览器链接与渲染产物
+tools/html2video/node_modules/
+tools/html2video/.browsers/
+tools/html2video/out/
+tools/html2video/sample/.tmp-h2v-*.html

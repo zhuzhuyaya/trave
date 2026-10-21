@@ -140,3 +140,25 @@ CREATE TABLE IF NOT EXISTS `bookmarks` (
   UNIQUE KEY `uk_bookmarks` (`entry_id`, `user_id`),
   KEY `idx_bookmarks_user` (`user_id`, `created_at` DESC)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='日记收藏';
+
+-- -----------------------------------------------------------------------------
+--  entry_embeddings · 日记语义向量(BGE-M3,1024 维)
+--
+--  个人日记量级(几百~几千篇)下不做向量索引:相似度检索在 Java 侧
+--  暴力算余弦,单用户全量向量常驻内存也就几 MB,亚毫秒出结果。
+--  什么时候该换pgvector?单库日记超过 10 万篇再说。
+--
+--  vector 用 MEDIUMTEXT 存 JSON 数组,而不是 BLOB 定长浮点:
+--  调试时肉眼可读,Java 侧 Jackson 直接反序列化,体积差在这一量级无感。
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `entry_embeddings` (
+  `entry_id`     BIGINT       NOT NULL,
+  `user_id`      BIGINT       NOT NULL,
+  `model`        VARCHAR(64)  NOT NULL DEFAULT 'bge-m3' COMMENT '嵌入模型标识;换模型时必须全量重建',
+  `vector`       MEDIUMTEXT   NOT NULL                COMMENT 'JSON 数组,1024 个 float',
+  `text_hash`    CHAR(64)     NOT NULL                COMMENT '嵌入时原文的 SHA-256;哈希一致就跳过重算',
+  `created_at`   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`entry_id`),
+  KEY `idx_embeddings_user` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='日记语义向量(bge-m3)';

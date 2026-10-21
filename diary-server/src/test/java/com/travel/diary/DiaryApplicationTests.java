@@ -65,6 +65,17 @@ class DiaryApplicationTests {
     }
 
     @Test
+    @DisplayName("AI 未启用时语义搜索返回 enabled=false,而不是报错")
+    void semanticSearchDegradesWhenAiDisabled() {
+        var result = context.getBean(EntryService.class)
+                .semanticSearch("京都的秋天", new LoginUser(1L, "traveler", "USER"));
+
+        // 没有嵌入模型 Bean 时必须短路由,不能去查向量表或调 Ollama
+        assertThat(result.isEnabled()).isFalse();
+        assertThat(result.getHits()).isEmpty();
+    }
+
+    @Test
     @DisplayName("JWT 签发后能原样解析回来")
     void jwtRoundTrip() {
         JwtUtil jwtUtil = context.getBean(JwtUtil.class);

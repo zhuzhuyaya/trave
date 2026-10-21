@@ -8,6 +8,7 @@ import com.travel.diary.security.LoginUser;
 import com.travel.diary.vo.BookmarkPageVO;
 import com.travel.diary.vo.EntryDetailVO;
 import com.travel.diary.vo.EntrySummaryVO;
+import com.travel.diary.vo.SemanticSearchVO;
 import com.travel.diary.vo.ToggleVO;
 
 public interface EntryService {
@@ -15,6 +16,15 @@ public interface EntryService {
     PageResult<EntrySummaryVO> list(EntryQuery query, LoginUser viewer);
 
     EntryDetailVO detail(Long id, LoginUser viewer);
+
+    /**
+     * 语义搜索:按"意思"而不是字面匹配,返回按相关度降序的日记卡片。
+     *
+     * <p>AI 未启用时返回 {@code enabled=false} 的空结果,而不是报错 ——
+     * 前端据此提示"去开启 AI",与"确实没有相似日记"区分开。
+     * Ollama 已装配但调用失败时抛 50300,由全局异常处理成可读提示。
+     */
+    SemanticSearchVO semanticSearch(String query, LoginUser viewer);
 
     EntryDetailVO create(EntryRequest request, LoginUser author);
 
