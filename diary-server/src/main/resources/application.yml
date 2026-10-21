@@ -72,6 +72,16 @@ panel:
     dir: ${UPLOAD_DIR:./uploads}
     max-size: 10485760
     url-prefix: /uploads
+  tiles:
+    # 地图瓦片代理(见 TileService):先查磁盘缓存,未命中回源。
+    # 上游是 OSM 德国镜像,取舍过程记录在 MapView.vue 与 TileProperties 的注释里。
+    upstream: https://tile.openstreetmap.de
+    cache-dir: ${TILE_CACHE_DIR:./tile-cache}
+    # 瓦片按"最近一次被浏览"刷新时间戳,一周没人看的才过期
+    ttl-hours: 168
+    # 目录上限 512MB ≈ 上万张瓦片,超出后按最久未用淘汰
+    max-mb: 512
+    timeout-seconds: 10
   seed:
     # 首次启动时若 users 表为空,写入演示数据。生产环境设 SEED_ENABLED=false
     enabled: ${SEED_ENABLED:true}
